@@ -84,20 +84,20 @@ static PyObject *getServerPrincipalDetails(PyObject *self, PyObject *args)
 
 static PyObject* authGSSClientInit(PyObject* self, PyObject* args, PyObject* keywds)
 {
-    const char *service;
+    const char *service, *mech_oid = NULL;
     gss_client_state *state;
     PyObject *pystate;
-    static char *kwlist[] = {"service", "gssflags", NULL};
+    static char *kwlist[] = {"service", "gssflags", "mech_oid", NULL};
     long int gss_flags = GSS_C_MUTUAL_FLAG | GSS_C_SEQUENCE_FLAG;
     int result = 0;
 
-    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|l", kwlist, &service, &gss_flags))
+    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|lz", kwlist, &service, &gss_flags, &mech_oid))
         return NULL;
 
     state = (gss_client_state *) malloc(sizeof(gss_client_state));
     pystate = PyCObject_FromVoidPtr(state, NULL);
 
-    result = authenticate_gss_client_init(service, gss_flags, state);
+    result = authenticate_gss_client_init(service, gss_flags, mech_oid, state);
     if (result == AUTH_GSS_ERROR)
         return NULL;
 
@@ -250,18 +250,18 @@ static PyObject *authGSSClientWrap(PyObject *self, PyObject *args)
 
 static PyObject *authGSSServerInit(PyObject *self, PyObject *args)
 {
-    const char *service;
+    const char *service, *mech_oid = NULL;
     gss_server_state *state;
     PyObject *pystate;
     int result = 0;
 
-    if (!PyArg_ParseTuple(args, "s", &service))
+    if (!PyArg_ParseTuple(args, "s|z", &service, &mech_oid))
         return NULL;
 
     state = (gss_server_state *) malloc(sizeof(gss_server_state));
     pystate = PyCObject_FromVoidPtr(state, NULL);
 
-    result = authenticate_gss_server_init(service, state);
+    result = authenticate_gss_server_init(service, mech_oid, state);
     if (result == AUTH_GSS_ERROR)
         return NULL;
 
@@ -380,7 +380,7 @@ static PyObject *authGSSServerTargetName(PyObject *self, PyObject *args)
     return Py_BuildValue("s", state->targetname);
 }
 
-static PyMethodDef KerberosMethods[] = {
+static PyMethodDef MoonshotMethods[] = {
     {"checkPassword",  checkPassword, METH_VARARGS,
      "Check the supplied user/password against Kerberos KDC."},
     {"changePassword",  changePassword, METH_VARARGS,
@@ -416,32 +416,32 @@ static PyMethodDef KerberosMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-PyMODINIT_FUNC initkerberos(void)
+PyMODINIT_FUNC initmoonshot(void)
 {
     PyObject *m,*d;
 
-    m = Py_InitModule("kerberos", KerberosMethods);
+    m = Py_InitModule("moonshot", MoonshotMethods);
 
     d = PyModule_GetDict(m);
 
     /* create the base exception class */
-    if (!(KrbException_class = PyErr_NewException("kerberos.KrbError", NULL, NULL)))
+    if (!(KrbException_class = PyErr_NewException("moonshot.KrbError", NULL, NULL)))
         goto error;
     PyDict_SetItemString(d, "KrbError", KrbException_class);
     Py_INCREF(KrbException_class);
 
     /* ...and the derived exceptions */
-    if (!(BasicAuthException_class = PyErr_NewException("kerberos.BasicAuthError", KrbException_class, NULL)))
+    if (!(BasicAuthException_class = PyErr_NewException("moonshot.BasicAuthError", KrbException_class, NULL)))
         goto error;
     Py_INCREF(BasicAuthException_class);
     PyDict_SetItemString(d, "BasicAuthError", BasicAuthException_class);
 
-    if (!(PwdChangeException_class = PyErr_NewException("kerberos.PwdChangeError", KrbException_class, NULL)))
+    if (!(PwdChangeException_class = PyErr_NewException("moonshot.PwdChangeError", KrbException_class, NULL)))
         goto error;
     Py_INCREF(PwdChangeException_class);
     PyDict_SetItemString(d, "PwdChangeError", PwdChangeException_class);
 
-    if (!(GssException_class = PyErr_NewException("kerberos.GSSError", KrbException_class, NULL)))
+    if (!(GssException_class = PyErr_NewException("moonshot.GSSError", KrbException_class, NULL)))
         goto error;
     Py_INCREF(GssException_class);
     PyDict_SetItemString(d, "GSSError", GssException_class);
@@ -461,5 +461,5 @@ PyMODINIT_FUNC initkerberos(void)
 
 error:
     if (PyErr_Occurred())
-        PyErr_SetString(PyExc_ImportError, "kerberos: init failed");
+        PyErr_SetString(PyExc_ImportError, "moonshot: init failed");
 }

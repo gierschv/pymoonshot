@@ -25,6 +25,7 @@
 #include <arpa/inet.h>
 
 static void set_gss_error(OM_uint32 err_maj, OM_uint32 err_min);
+static void parse_oid(const char *mechanism, gss_OID *oid);
 
 extern PyObject *GssException_class;
 extern PyObject *KrbException_class;
@@ -106,7 +107,7 @@ end:
     return result;
 }
 
-int authenticate_gss_client_init(const char* service, long int gss_flags, gss_client_state* state)
+int authenticate_gss_client_init(const char* service, long int gss_flags, const char *mech_oid, gss_client_state* state)
 {
     OM_uint32 maj_stat;
     OM_uint32 min_stat;
@@ -118,6 +119,12 @@ int authenticate_gss_client_init(const char* service, long int gss_flags, gss_cl
     state->gss_flags = gss_flags;
     state->username = NULL;
     state->response = NULL;
+
+    if (mech_oid == NULL)
+        state->mech_type = GSS_C_NO_OID;
+    else
+        parse_oid(mech_oid, &state->mech_type);
+    // printf("[C] client oid: %s", mech_oid);
     
     // Import server name first
     name_token.length = strlen(service);
@@ -188,7 +195,7 @@ int authenticate_gss_client_step(gss_client_state* state, const char* challenge)
                                     GSS_C_NO_CREDENTIAL,
                                     &state->context,
                                     state->server_name,
-                                    GSS_C_NO_OID,
+                                    state->mech_type,
                                     (OM_uint32)state->gss_flags,
                                     0,
                                     GSS_C_NO_CHANNEL_BINDINGS,
@@ -386,7 +393,7 @@ end:
 	return ret;
 }
 
-int authenticate_gss_server_init(const char *service, gss_server_state *state)
+int authenticate_gss_server_init(const char *service, const char *desired_mech_oid, gss_server_state *state)
 {
     OM_uint32 maj_stat;
     OM_uint32 min_stat;
@@ -420,8 +427,22 @@ int authenticate_gss_server_init(const char *service, gss_server_state *state)
         }
         
         // Get credentials
-        maj_stat = gss_acquire_cred(&min_stat, state->server_name, GSS_C_INDEFINITE,
-                                    GSS_C_NO_OID_SET, GSS_C_ACCEPT, &state->server_creds, NULL, NULL);
+        // No desired mechanism precised, use GSS_C_NO_OID_SET instead
+        if (desired_mech_oid == NULL) {
+            maj_stat = gss_acquire_cred(&min_stat, state->server_name, GSS_C_INDEFINITE,
+                                        GSS_C_NO_OID_SET, GSS_C_ACCEPT, &state->server_creds, NULL, NULL);
+        }
+        else {
+            gss_OID_set_desc mechs;
+            gss_OID mech_oid;
+            parse_oid(desired_mech_oid, &mech_oid);
+
+            mechs.count = 1;
+            mechs.elements = mech_oid;
+            maj_stat = gss_acquire_cred(&min_stat, state->server_name, GSS_C_INDEFINITE,
+                                        &mechs, GSS_C_ACCEPT, &state->server_creds, NULL, NULL);
+
+        }
         
         if (GSS_ERROR(maj_stat))
         {
@@ -606,4 +627,33 @@ static void set_gss_error(OM_uint32 err_maj, OM_uint32 err_min)
     } while (!GSS_ERROR(maj_stat) && msg_ctx != 0);
     
     PyErr_SetObject(GssException_class, Py_BuildValue("((s:i)(s:i))", buf_maj, err_maj, buf_min, err_min));
+}
+
+static void parse_oid(const char *mechanism, gss_OID *oid)
+{
+    char        *mechstr = 0, *cp;
+    gss_buffer_desc tok;
+    OM_uint32 maj_stat, min_stat;
+   
+    if (isdigit(mechanism[0])) {
+        mechstr = malloc(strlen(mechanism)+5);
+        if (!mechstr) {
+            printf("Couldn't allocate mechanism scratch!\n");
+            return;
+        }
+        sprintf(mechstr, "{ %s }", mechanism);
+        for (cp = mechstr; *cp; cp++)
+            if (*cp == '.')
+                *cp = ' ';
+        tok.value = mechstr;
+    } else
+        tok.value = (char*) mechanism;
+    tok.length = strlen(tok.value);
+    maj_stat = gss_str_to_oid(&min_stat, &tok, oid);
+    if (maj_stat != GSS_S_COMPLETE) {
+        set_gss_error(maj_stat, min_stat);
+        return;
+    }
+    if (mechstr)
+        free(mechstr);
 }

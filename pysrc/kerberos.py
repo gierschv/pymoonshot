@@ -99,7 +99,7 @@ GSS_C_ANON_FLAG       = 64
 GSS_C_PROT_READY_FLAG = 128 
 GSS_C_TRANS_FLAG      = 256 
      
-def authGSSClientInit(service, gssflags=GSS_C_MUTUAL_FLAG|GSS_C_SEQUENCE_FLAG):
+def authGSSClientInit(service, gssflags=GSS_C_MUTUAL_FLAG|GSS_C_SEQUENCE_FLAG, desiredMechOID=None):
     """
     Initializes a context for GSSAPI client-side authentication with the given service principal.
     authGSSClientClean must be called after this function returns an OK result to dispose of
@@ -110,6 +110,9 @@ def authGSSClientInit(service, gssflags=GSS_C_MUTUAL_FLAG|GSS_C_SEQUENCE_FLAG):
     @param gssflags: optional integer used to set GSS flags.
         (e.g.  GSS_C_DELEG_FLAG|GSS_C_MUTUAL_FLAG|GSS_C_SEQUENCE_FLAG will allow 
         for forwarding credentials to the remote host)
+    @param desiredMechOID: the desired mechanism OID, a string representation is a series of
+        blank-separated or period-separated numbers enclosed in braces.
+        (e.g. '{1 3 6 1 5 5 15 1 1 18}')
     @return: a tuple of (result, context) where result is the result code (see above) and
         context is an opaque value that will need to be passed to subsequent functions.
     """
@@ -167,7 +170,7 @@ def authGSSClientWrap(context, data, user=None):
     @return: a result code (see above) 
     """ 
 
-def authGSSServerInit(service):
+def authGSSServerInit(service, desiredMechOID=None):
     """
     Initializes a context for GSSAPI server-side authentication with the given service principal.
     authGSSServerClean must be called after this function returns an OK result to dispose of
@@ -175,6 +178,9 @@ def authGSSServerInit(service):
 
     @param service: a string containing the service principal in the form 'type@fqdn'
         (e.g. 'imap@mail.apple.com').
+    @param desiredMechOID: the desired mechanism OID, a string representation is a series of
+        blank-separated or period-separated numbers enclosed in braces.
+        (e.g. '{1 3 6 1 5 5 15 1 1 18}')
     @return: a tuple of (result, context) where result is the result code (see above) and
         context is an opaque value that will need to be passed to subsequent functions.
     """
