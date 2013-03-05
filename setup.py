@@ -19,17 +19,14 @@ import sys
 import commands
 
 long_description = """
-This Python package is a high-level wrapper for Kerberos (GSSAPI) operations.
-The goal is to avoid having to build a module that wraps the entire Kerberos.framework,
-and instead offer a limited set of functions that do what is needed for client/server
-Kerberos authentication based on <http://www.ietf.org/rfc/rfc4559.txt>.
+This package is a fork of PyKerberos package.
 
 """
 
 setup (
-    name = "kerberos",
-    version = "1.1.1",
-    description = "Kerberos high-level interface",
+    name = "moonshot",
+    version = "0.1",
+    description = "GSS-API high-level interface for Janet Moonshot",
     long_description=long_description,
     classifiers = [
         "License :: OSI Approved :: Apache Software License",
@@ -39,7 +36,7 @@ setup (
         ],
     ext_modules = [
         Extension(
-            "kerberos",
+            "moonshot",
             extra_link_args = commands.getoutput("krb5-config --libs gssapi").split(),
             extra_compile_args = commands.getoutput("krb5-config --cflags gssapi").split(),
             sources = [
