@@ -495,6 +495,7 @@ int authenticate_gss_server_step(gss_server_state *state, const char *challenge)
 {
     OM_uint32 maj_stat;
     OM_uint32 min_stat;
+    OM_uint32 accept_sec_maj_stat;
     gss_buffer_desc input_token = GSS_C_EMPTY_BUFFER;
     gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
     int ret = AUTH_GSS_CONTINUE;
@@ -531,7 +532,8 @@ int authenticate_gss_server_step(gss_server_state *state, const char *challenge)
                                       NULL,
                                       NULL,
                                       &state->client_creds);
-    
+    accept_sec_maj_stat = maj_stat;
+
     if (GSS_ERROR(maj_stat))
     {
         set_gss_error(maj_stat, min_stat);
@@ -542,8 +544,12 @@ int authenticate_gss_server_step(gss_server_state *state, const char *challenge)
     // Grab the server response to send back to the client
     if (output_token.length)
     {
-        state->response = base64_encode((const unsigned char *)output_token.value, output_token.length);;
+        state->response = base64_encode((const unsigned char *)output_token.value, output_token.length);
         maj_stat = gss_release_buffer(&min_stat, &output_token);
+        if (accept_sec_maj_stat != GSS_S_COMPLETE) {
+            maj_stat = accept_sec_maj_stat;
+            goto end;
+        }
     }
     
     // Get the user name
