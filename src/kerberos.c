@@ -360,6 +360,42 @@ static PyObject *authGSSServerUserName(PyObject *self, PyObject *args)
     return Py_BuildValue("s", state->username);
 }
 
+static PyObject *authGSSServerAttributes(PyObject *self, PyObject *args)
+{
+    gss_server_state *state;
+    PyObject *pystate;
+    int result = 0;
+    
+    if (!PyArg_ParseTuple(args, "O", &pystate))
+        return NULL;
+    
+    if (!PyCObject_Check(pystate)) {
+        PyErr_SetString(PyExc_TypeError, "Expected a context object");
+        return NULL;
+    }
+
+    state = (gss_server_state *)PyCObject_AsVoidPtr(pystate);
+    if (state == NULL)
+        return NULL;
+
+    if (state->attributes == NULL) {
+        result = authenticate_gss_server_attributes(state);
+        if (result != AUTH_GSS_COMPLETE || state->attributes == NULL)
+            return NULL;
+    }
+
+    PyObject *attributes = PyList_New(0);
+    size_t i = 0;
+    while (state->attributes[i] != NULL) {
+        PyObject *attribute = PyString_FromString(state->attributes[i]);
+        PyList_Append(attributes, attribute);
+        Py_DECREF(attribute);
+        i++;
+    }
+
+    return Py_BuildValue("O", attributes);
+}
+
 static PyObject *authGSSServerTargetName(PyObject *self, PyObject *args)
 {
     gss_server_state *state;
@@ -410,9 +446,11 @@ static PyMethodDef MoonshotMethods[] = {
     {"authGSSServerResponse",  authGSSServerResponse, METH_VARARGS,
      "Get the response from the last server-side GSSAPI step."},
     {"authGSSServerUserName",  authGSSServerUserName, METH_VARARGS,
-        "Get the user name from the last server-side GSSAPI step."},
+    "Get the user name from the last server-side GSSAPI step."},
+    {"authGSSServerAttributes", authGSSServerAttributes, METH_VARARGS,
+    "Get the client attributes" },
     {"authGSSServerTargetName",  authGSSServerTargetName, METH_VARARGS,
-        "Get the target name from the last server-side GSSAPI step."},
+    "Get the target name from the last server-side GSSAPI step."},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

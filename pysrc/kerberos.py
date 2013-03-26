@@ -229,3 +229,10 @@ def authGSSServerTargetName(context):
     @return: a string containing the target name.
     """
 
+def authGSSServerAttributes(context):
+    """
+    Get the attributes (implementation of gss_inquire_name and gss_get_name_attribute)
+    This method must only be called after authGSSServerStep returns a complete.
+
+    @return: a list of string representing the different attributes
+    """

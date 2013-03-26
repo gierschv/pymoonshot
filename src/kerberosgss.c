@@ -124,7 +124,6 @@ int authenticate_gss_client_init(const char* service, long int gss_flags, const 
         state->mech_type = GSS_C_NO_OID;
     else
         parse_oid(mech_oid, &state->mech_type);
-    // printf("[C] client oid: %s", mech_oid);
     
     // Import server name first
     name_token.length = strlen(service);
@@ -408,6 +407,8 @@ int authenticate_gss_server_init(const char *service, const char *desired_mech_o
     state->username = NULL;
     state->targetname = NULL;
     state->response = NULL;
+    state->maj_stat = AUTH_GSS_CONTINUE;
+    state->attributes = NULL;
     
     // Server name may be empty which means we aren't going to create our own creds
     size_t service_len = strlen(service);
@@ -487,6 +488,14 @@ int authenticate_gss_server_clean(gss_server_state *state)
         free(state->response);
         state->response = NULL;
     }
+    if (state->attributes != NULL)
+    {
+        size_t i = 0;
+        while (state->attributes[i] != NULL)
+            free(state->attributes[i++]);
+        free(state->attributes);
+        state->attributes = NULL;
+    }
     
     return ret;
 }
@@ -495,7 +504,6 @@ int authenticate_gss_server_step(gss_server_state *state, const char *challenge)
 {
     OM_uint32 maj_stat;
     OM_uint32 min_stat;
-    OM_uint32 accept_sec_maj_stat;
     gss_buffer_desc input_token = GSS_C_EMPTY_BUFFER;
     gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
     int ret = AUTH_GSS_CONTINUE;
@@ -521,33 +529,31 @@ int authenticate_gss_server_step(gss_server_state *state, const char *challenge)
         goto end;
     }
     
-    maj_stat = gss_accept_sec_context(&min_stat,
-                                      &state->context,
-                                      state->server_creds,
-                                      &input_token,
-                                      GSS_C_NO_CHANNEL_BINDINGS,
-                                      &state->client_name,
-                                      NULL,
-                                      &output_token,
-                                      NULL,
-                                      NULL,
-                                      &state->client_creds);
-    accept_sec_maj_stat = maj_stat;
-
-    if (GSS_ERROR(maj_stat))
+    state->maj_stat = gss_accept_sec_context(&min_stat,
+                                             &state->context,
+                                             state->server_creds,
+                                             &input_token,
+                                             GSS_C_NO_CHANNEL_BINDINGS,
+                                             &state->client_name,
+                                             NULL,
+                                             &output_token,
+                                             NULL,
+                                             NULL,
+                                             &state->client_creds);
+    if (GSS_ERROR(state->maj_stat))
     {
-        set_gss_error(maj_stat, min_stat);
+        set_gss_error(state->maj_stat, min_stat);
         ret = AUTH_GSS_ERROR;
         goto end;
     }
-    
+
     // Grab the server response to send back to the client
     if (output_token.length)
     {
         state->response = base64_encode((const unsigned char *)output_token.value, output_token.length);
         maj_stat = gss_release_buffer(&min_stat, &output_token);
-        if (accept_sec_maj_stat != GSS_S_COMPLETE) {
-            maj_stat = accept_sec_maj_stat;
+        if (state->maj_stat != GSS_S_COMPLETE) {
+            maj_stat = state->maj_stat;
             goto end;
         }
     }
@@ -597,6 +603,85 @@ end:
     return ret;
 }
 
+static char* gss_server_dump_attribute(gss_name_t name, gss_buffer_t attribute)
+{
+    OM_uint32 maj_stat;
+    OM_uint32 min_stat;
+    gss_buffer_desc value;
+    gss_buffer_desc display_value;
+
+    int authenticated = 0;
+    int complete = 0;
+    int more = -1;
+
+    char *result = NULL;
+    size_t result_pos = 0;
+
+    while (more != 0) {
+        value.value = NULL;
+        display_value.value = NULL;
+
+        maj_stat = gss_get_name_attribute(&min_stat, name, attribute, &authenticated,
+                                          &complete, &value, &display_value,
+                                          &more);
+        if (GSS_ERROR(maj_stat))
+        {
+            set_gss_error(maj_stat, min_stat);
+            if (result != NULL)
+                free(result);
+            return NULL;
+        }
+
+        result = realloc(result, (result == NULL ? 0 : result_pos) + display_value.length + 1);
+        memcpy(result + result_pos, display_value.value, display_value.length);
+        result_pos += display_value.length;
+        result[result_pos] = '\0';
+
+        gss_release_buffer(&min_stat, &value);
+        gss_release_buffer(&min_stat, &display_value);
+    }
+
+    return result;
+}
+
+int authenticate_gss_server_attributes(gss_server_state *state)
+{
+    if (state->maj_stat != GSS_S_COMPLETE)
+        return AUTH_GSS_ERROR;
+
+    if (state->attributes != NULL)
+        return AUTH_GSS_COMPLETE;
+
+    OM_uint32 maj_stat;
+    OM_uint32 min_stat;
+    gss_OID mech = GSS_C_NO_OID;
+    gss_buffer_set_t attrs = GSS_C_NO_BUFFER_SET;
+
+    int name_is_MN;
+    size_t i;
+
+    maj_stat = gss_inquire_name(&min_stat, state->client_name, &name_is_MN, &mech, &attrs);
+    if (GSS_ERROR(maj_stat))
+    {
+        set_gss_error(maj_stat, min_stat);
+        return AUTH_GSS_ERROR;
+    }
+
+    if (attrs != GSS_C_NO_BUFFER_SET)
+    {
+        state->attributes = malloc((attrs->count + 1) * sizeof(char*));
+        if (state->attributes == NULL)
+            return AUTH_GSS_ERROR;
+        for (i = 0; i < attrs->count; i++) {
+            state->attributes[i] = gss_server_dump_attribute(state->client_name, &attrs->elements[i]);
+        }
+        state->attributes[i] = NULL;
+    }
+
+    gss_release_oid(&min_stat, &mech);
+    gss_release_buffer_set(&min_stat, &attrs);
+    return AUTH_GSS_COMPLETE;
+}
 
 static void set_gss_error(OM_uint32 err_maj, OM_uint32 err_min)
 {
