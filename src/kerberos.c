@@ -378,18 +378,18 @@ static PyObject *authGSSServerAttributes(PyObject *self, PyObject *args)
     if (state == NULL)
         return NULL;
 
-    if (state->attributes == NULL) {
+    if (state->attributes_keys == NULL) {
         result = authenticate_gss_server_attributes(state);
-        if (result != AUTH_GSS_COMPLETE || state->attributes == NULL)
+        if (result != AUTH_GSS_COMPLETE ||
+            state->attributes_keys == NULL || state->attributes_values == NULL)
             return NULL;
     }
 
-    PyObject *attributes = PyList_New(0);
+    PyObject *attributes = PyDict_New();
     size_t i = 0;
-    while (state->attributes[i] != NULL) {
-        PyObject *attribute = PyString_FromString(state->attributes[i]);
-        PyList_Append(attributes, attribute);
-        Py_DECREF(attribute);
+    while (state->attributes_keys[i] != NULL) {
+        PyObject *attribute_value = PyString_FromString(state->attributes_values[i]);
+        PyDict_SetItemString(attributes, state->attributes_keys[i], attribute_value);
         i++;
     }
 

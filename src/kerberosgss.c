@@ -408,7 +408,8 @@ int authenticate_gss_server_init(const char *service, const char *desired_mech_o
     state->targetname = NULL;
     state->response = NULL;
     state->maj_stat = AUTH_GSS_CONTINUE;
-    state->attributes = NULL;
+    state->attributes_keys = NULL;
+    state->attributes_values = NULL;
     
     // Server name may be empty which means we aren't going to create our own creds
     size_t service_len = strlen(service);
@@ -488,13 +489,21 @@ int authenticate_gss_server_clean(gss_server_state *state)
         free(state->response);
         state->response = NULL;
     }
-    if (state->attributes != NULL)
+    if (state->attributes_keys != NULL)
     {
         size_t i = 0;
-        while (state->attributes[i] != NULL)
-            free(state->attributes[i++]);
-        free(state->attributes);
-        state->attributes = NULL;
+        while (state->attributes_keys[i] != NULL)
+            free(state->attributes_keys[i++]);
+        free(state->attributes_keys);
+        state->attributes_keys = NULL;
+    }
+    if (state->attributes_values != NULL)
+    {
+        size_t i = 0;
+        while (state->attributes_values[i] != NULL)
+            free(state->attributes_values[i++]);
+        free(state->attributes_values);
+        state->attributes_values = NULL;
     }
     
     return ret;
@@ -649,7 +658,7 @@ int authenticate_gss_server_attributes(gss_server_state *state)
     if (state->maj_stat != GSS_S_COMPLETE)
         return AUTH_GSS_ERROR;
 
-    if (state->attributes != NULL)
+    if (state->attributes_keys != NULL)
         return AUTH_GSS_COMPLETE;
 
     OM_uint32 maj_stat;
@@ -669,13 +678,21 @@ int authenticate_gss_server_attributes(gss_server_state *state)
 
     if (attrs != GSS_C_NO_BUFFER_SET)
     {
-        state->attributes = malloc((attrs->count + 1) * sizeof(char*));
-        if (state->attributes == NULL)
+        state->attributes_keys = malloc((attrs->count + 1) * sizeof(char*));
+        state->attributes_values = malloc((attrs->count + 1) * sizeof(char*));
+        if (state->attributes_keys == NULL || state->attributes_values == NULL)
             return AUTH_GSS_ERROR;
         for (i = 0; i < attrs->count; i++) {
-            state->attributes[i] = gss_server_dump_attribute(state->client_name, &attrs->elements[i]);
+            state->attributes_keys[i] = malloc(attrs->elements[i].length + 1);
+            if (state->attributes_keys[i] != NULL)
+            {
+                memcpy(state->attributes_keys[i], attrs->elements[i].value, attrs->elements[i].length);
+                state->attributes_keys[i][attrs->elements[i].length] = '\0';
+            }
+            state->attributes_values[i] = gss_server_dump_attribute(state->client_name, &attrs->elements[i]);
         }
-        state->attributes[i] = NULL;
+        state->attributes_keys[i] = NULL;
+        state->attributes_values[i] = NULL;
     }
 
     gss_release_oid(&min_stat, &mech);
