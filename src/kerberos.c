@@ -497,6 +497,8 @@ PyMODINIT_FUNC initmoonshot(void)
     PyDict_SetItemString(d, "GSS_C_PROT_READY_FLAG", PyInt_FromLong(GSS_C_PROT_READY_FLAG));
     PyDict_SetItemString(d, "GSS_C_TRANS_FLAG", PyInt_FromLong(GSS_C_TRANS_FLAG));
 
+    PyDict_SetItemString(d, "GSS_SPNEGO", PyString_FromString(GSS_SPNEGO));
+
 error:
     if (PyErr_Occurred())
         PyErr_SetString(PyExc_ImportError, "moonshot: init failed");

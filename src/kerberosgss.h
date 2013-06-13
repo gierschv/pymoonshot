@@ -24,9 +24,11 @@
 #define AUTH_GSS_COMPLETE    1
 #define AUTH_GSS_CONTINUE    0
 
-#define GSS_AUTH_P_NONE         1
-#define GSS_AUTH_P_INTEGRITY    2
-#define GSS_AUTH_P_PRIVACY      4
+#define GSS_AUTH_P_NONE      1
+#define GSS_AUTH_P_INTEGRITY 2
+#define GSS_AUTH_P_PRIVACY   4
+
+#define GSS_SPNEGO           "{1 3 6 1 5 5 2}"
 
 typedef struct {
     gss_ctx_id_t     context;
