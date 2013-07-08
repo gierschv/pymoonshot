@@ -454,11 +454,11 @@ static PyMethodDef MoonshotMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
-PyMODINIT_FUNC initmoonshot(void)
+PyMODINIT_FUNC initpymoonshot(void)
 {
     PyObject *m,*d;
 
-    m = Py_InitModule("moonshot", MoonshotMethods);
+    m = Py_InitModule("pymoonshot", MoonshotMethods);
 
     d = PyModule_GetDict(m);
 

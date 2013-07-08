@@ -24,8 +24,8 @@ This package is a fork of PyKerberos package.
 """
 
 setup (
-    name = "moonshot",
-    version = "0.1",
+    name = "pymoonshot",
+    version = "0.1.0-1",
     description = "GSS-API high-level interface for Janet Moonshot",
     long_description=long_description,
     classifiers = [
@@ -36,7 +36,7 @@ setup (
         ],
     ext_modules = [
         Extension(
-            "moonshot",
+            "pymoonshot",
             extra_link_args = commands.getoutput("krb5-config --libs gssapi").split(),
             extra_compile_args = commands.getoutput("krb5-config --cflags gssapi").split(),
             sources = [
@@ -45,7 +45,7 @@ setup (
                 "src/kerberosgss.c",
                 "src/kerberospw.c",
                 "src/base64.c"
-            ],
+            ]
         ),
     ],
 )
