@@ -2,3 +2,5 @@ build
 moonshot.egg-info
 moonshot.so
 moonshot_d.so
+dist
+MANIFEST
